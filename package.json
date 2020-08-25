@@ -18,39 +18,67 @@
     ],
     "activationEvents": [
         "onLanguage:csharp",
-        "onCommand:csharpextensions.createClass",
-        "onCommand:csharpextensions.createEnum",
-        "onCommand:csharpextensions.createInterface"
+        "onCommand:csharpextensions.changeBuildAction",
+        "onCommand:csharpextensions.createFolder",
+        "onCommand:csharpextensions.addFolder",
+        "onCommand:csharpextensions.createFile",
+        "onCommand:csharpextensions.addFiles",
+        "onCommand:csharpextensions.rename",
+        "onCommand:csharpextensions.remove"
     ],
     "main": "./out/src/extension",
     "contributes": {
         "commands": [
             {
-                "command": "csharpextensions.createClass",
-                "title": "New C# Class"
+                "command": "csharpextensions.createFolder",
+                "title": "Add new Folder to project"
             },
             {
-                "command": "csharpextensions.createInterface",
-                "title": "New C# Interface"
+                "command": "csharpextensions.createFile",
+                "title": "Add new File to project"
             },
             {
-                "command": "csharpextensions.createEnum",
-                "title": "New C# Enum"
+                "command": "csharpextensions.addFiles",
+                "title": "Add existing Files to project"
+            },
+            {
+                "command": "csharpextensions.rename",
+                "title": "Rename project item"
+            },
+            {
+                "command": "csharpextensions.remove",
+                "title": "Remove from project"
+            },
+            {
+                "command": "csharpextensions.changeBuildAction",
+                "title": "Change build action"
             }
         ],
         "menus": {
             "explorer/context": [
                 {
                     "group": "navigation@-1",
-                    "command": "csharpextensions.createClass"
+                    "command": "csharpextensions.createFile"
                 },
                 {
                     "group": "navigation@-1",
-                    "command": "csharpextensions.createInterface"
+                    "command": "csharpextensions.addFiles"
                 },
                 {
                     "group": "navigation@-1",
-                    "command": "csharpextensions.createEnum"
+                    "command": "csharpextensions.createFolder"
+                },
+                {
+                    "group": "navigation@-1",
+                    "command": "csharpextensions.rename"
+                },
+                {
+                    "group": "navigation@-1",
+                    "command": "csharpextensions.remove"
+                },
+                {
+                    "group": "navigation@-1",
+                    "command": "csharpextensions.changeBuildAction"
                 }
             ]
         },
@@ -91,6 +119,7 @@
     },
     "dependencies": {
         "find-up-glob": "^1.0.0",
-        "xml2js": "^0.4.23"
+        "xml2js": "^0.4.23",
+        "ncp": "^2.0.0"
     }
 }
