@@ -18,39 +18,67 @@
     ],
     "activationEvents": [
         "onLanguage:csharp",
-        "onCommand:csharpextensions.createClass",
-        "onCommand:csharpextensions.createEnum",
-        "onCommand:csharpextensions.createInterface"
+        "onCommand:csharpextensions.changeBuildAction",
+        "onCommand:csharpextensions.createFolder",
+        "onCommand:csharpextensions.addFolder",
+        "onCommand:csharpextensions.createFile",
+        "onCommand:csharpextensions.addFiles",
+        "onCommand:csharpextensions.rename",
+        "onCommand:csharpextensions.remove"
     ],
     "main": "./out/src/extension",
     "contributes": {
         "commands": [
             {
-                "command": "csharpextensions.createClass",
-                "title": "New C# Class"
+                "command": "csharpextensions.createFolder",
+                "title": "Add new Folder to project"
             },
             {
-                "command": "csharpextensions.createInterface",
-                "title": "New C# Interface"
+                "command": "csharpextensions.createFile",
+                "title": "Add new File to project"
             },
             {
-                "command": "csharpextensions.createEnum",
-                "title": "New C# Enum"
+                "command": "csharpextensions.addFiles",
+                "title": "Add existing Files to project"
+            },
+            {
+                "command": "csharpextensions.rename",
+                "title": "Rename project item"
+            },
+            {
+                "command": "csharpextensions.remove",
+                "title": "Remove from project"
+            },
+            {
+                "command": "csharpextensions.changeBuildAction",
+                "title": "Change build action"
             }
         ],
         "menus": {
             "explorer/context": [
                 {
                     "group": "navigation@-1",
-                    "command": "csharpextensions.createClass"
+                    "command": "csharpextensions.createFile"
                 },
                 {
                     "group": "navigation@-1",
-                    "command": "csharpextensions.createInterface"
+                    "command": "csharpextensions.addFiles"
                 },
                 {
                     "group": "navigation@-1",
-                    "command": "csharpextensions.createEnum"
+                    "command": "csharpextensions.createFolder"
+                },
+                {
+                    "group": "navigation@-1",
+                    "command": "csharpextensions.rename"
+                },
+                {
+                    "group": "navigation@-1",
+                    "command": "csharpextensions.remove"
+                },
+                {
+                    "group": "navigation@-1",
+                    "command": "csharpextensions.changeBuildAction"
                 }
             ]
         },
@@ -82,15 +110,16 @@
         "test": "mocha --require ts-node/register test/*.ts"
     },
     "devDependencies": {
-        "typescript": "^2.0.3",
+        "typescript": "^4.0.2",
         "vscode": "^1.0.0",
         "mocha": "^2.3.3",
-        "@types/node": "^6.0.40",
+        "@types/node": "^12.12.0",
         "@types/mocha": "^2.2.32",
         "ts-node": "^8.10.2"
     },
     "dependencies": {
         "find-up-glob": "^1.0.0",
-        "xml2js": "^0.4.23"
+        "xml2js": "^0.4.23",
+        "ncp": "^2.0.0"
     }
 }
