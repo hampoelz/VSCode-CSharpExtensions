@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
+import { CsProjWriter, BuildActions } from './csprojWriter';
 import CodeActionProvider from './codeActionProvider';
 import NamespaceDetector from './namespaceDetector';
 
@@ -85,7 +86,7 @@ function openTemplateAndSaveNewFile(type: string, namespace: string, filename: s
     const templateFilePath = path.join(extension.extensionPath, 'templates', templatefileName);
 
     vscode.workspace.openTextDocument(templateFilePath)
-        .then(doc => {
+        .then(async doc => {
             let text = doc.getText()
                 .replace('${namespace}', namespace)
                 .replace('${classname}', filename);
@@ -95,7 +96,8 @@ function openTemplateAndSaveNewFile(type: string, namespace: string, filename: s
             text = text.replace('${cursor}', '');
 
             fs.writeFileSync(originalfilepath, text);
-
+            await addToProjectAsync(originalfilepath, BuildActions.Compile);
+            
             vscode.workspace.openTextDocument(originalfilepath).then(doc => {
                 vscode.window.showTextDocument(doc).then(editor => {
                     if (cursorPosition != null) {
@@ -112,6 +114,13 @@ function openTemplateAndSaveNewFile(type: string, namespace: string, filename: s
 
             vscode.window.showErrorMessage(errorMessage);
         });
+}
+
+async function addToProjectAsync(path: string, type: BuildActions) {
+    const csproj = new CsProjWriter();
+    const proj = await csproj.getProjFilePath(path);
+
+    if (proj !== undefined) csproj.add(proj, path, type);
 }
 
 function findCursorInTemplate(text: string): vscode.Position | null {
