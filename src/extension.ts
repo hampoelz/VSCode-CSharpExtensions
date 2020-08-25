@@ -76,11 +76,11 @@ async function addFiles(args: any) {
     let isPerFileAction = await yesNoPickAsync('Would you like to select the build action for each file individually?');
     if (isPerFileAction === undefined) return;
 
-    var filePaths: string[] = [];
+    let filePaths: string[] = [];
     const ncp = require('ncp').ncp;
     for (let fileUri of files) {
-        var sourcePath = fileUri.fsPath || fileUri.path;
-        var destinationPath = path.join(incomingPath, path.basename(sourcePath));
+        let sourcePath = fileUri.fsPath || fileUri.path;
+        let destinationPath = path.join(incomingPath, path.basename(sourcePath));
 
         filePaths.push(destinationPath);
 
@@ -142,7 +142,7 @@ async function rename(args: any) {
 
     await fs.rename(incomingPath, newPath);
 
-    var buildAction = await getBuildActionAsync(incomingPath);
+    let buildAction = await getBuildActionAsync(incomingPath);
     if (buildAction !== undefined) {
         await removeFromProjectAsync(incomingPath);
         await addToProjectAsync(newPath, buildAction);
@@ -176,7 +176,7 @@ async function change(args: any) {
 }
 
 async function selectBuildActionAndAdd(files: string[]) {
-    var items: Array<string> = [];
+    let items: Array<string> = [];
 
     Object.keys(BuildActions).map(key => {
         if (key === 'Folder' || key === 'PRIResource') return;
@@ -330,7 +330,7 @@ async function removeFolderAsync(folderPath: string, removeContentOnly?: boolean
 }
 
 async function yesNoPickAsync(message: string): Promise<boolean | undefined> {
-    var input = await vscode.window.showQuickPick(["No", "Yes"], { ignoreFocusOut: true, placeHolder: message });
+    let input = await vscode.window.showQuickPick(["No", "Yes"], { ignoreFocusOut: true, placeHolder: message });
 
     if (input === undefined) return undefined;
     else if (input === 'Yes') return true;
