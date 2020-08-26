@@ -106,11 +106,10 @@ async function remove(args: any) {
     let removeAction = await yesNoPickAsync("Are you sure you want to remove '" + path.basename(incomingPath) + "'?");
     if (removeAction === undefined || !removeAction) return;
 
-    if (isDir) await removeFolderAsync(incomingPath);
-    else {
-        await fs.unlink(incomingPath);
-        await removeFromProjectAsync(incomingPath);
-    }
+    await removeFromProjectAsync(incomingPath);
+
+    if (isDir) await removeFolderAsync(incomingPath); 
+    else await fs.unlink(incomingPath);
 }
 
 async function rename(args: any) {
@@ -145,7 +144,7 @@ async function rename(args: any) {
     let buildAction = await getBuildActionAsync(incomingPath);
     if (buildAction !== undefined) {
         await removeFromProjectAsync(incomingPath);
-        await addToProjectAsync(newPath, buildAction);
+        await addToProjectAsync([newPath], buildAction);
     }
 }
 
@@ -179,7 +178,7 @@ async function selectBuildActionAndAdd(files: string[]) {
     let items: Array<string> = [];
 
     Object.keys(BuildActions).map(key => {
-        if (key === 'Folder' || key === 'PRIResource') return;
+        if (key === 'Folder') return;
         items.push(key);
     });
 
@@ -187,9 +186,7 @@ async function selectBuildActionAndAdd(files: string[]) {
     if (buildAction === undefined) return;
 
     let buildType = BuildActions[buildAction as keyof typeof BuildActions];
-    for (let filePath of files) {
-        await addToProjectAsync(filePath, buildType);
-    }
+    await addToProjectAsync(files, buildType);
 }
 
 async function promptAndAddAsync(incomingPath: string, templateType: string, fileName: string | undefined = undefined) {
@@ -204,7 +201,7 @@ async function promptAndAddAsync(incomingPath: string, templateType: string, fil
             vscode.window.showErrorMessage("Folder already exists");
         } catch {
             await fs.mkdir(folderPath);
-            await addToProjectAsync(folderPath, BuildActions.Folder);
+            await addToProjectAsync([folderPath], BuildActions.Folder);
         }
     } else {
         let extName = "";
@@ -240,7 +237,7 @@ async function promptAndAddAsync(incomingPath: string, templateType: string, fil
                 typename = path.basename(fileName, path.extname(fileName));
 
             await writeFromTemplateAsync(templateType, namespace, typename, filePath, openBeside);
-            await addToProjectAsync(filePath, buildAction);
+            await addToProjectAsync([filePath], buildAction);
 
             if (addCsFile) await promptAndAddAsync(incomingPath, templateType + '.cs', fileName);
         }
@@ -285,9 +282,9 @@ async function getBuildActionAsync(path: string): Promise<BuildActions | undefin
     return undefined;
 }
 
-async function addToProjectAsync(path: string, type: BuildActions) {
+async function addToProjectAsync(path: string[], type: BuildActions) {
     const csproj = new CsProjWriter();
-    const proj = await csproj.getProjFilePath(path);
+    const proj = await csproj.getProjFilePath(path[0]);
 
     if (proj !== undefined) csproj.add(proj, path, type);
 }
@@ -316,17 +313,11 @@ async function removeFolderAsync(folderPath: string, removeContentOnly?: boolean
                 isDir = fileStat.isDirectory();
 
             if (isDir) await removeFolderAsync(filePath);
-            else {
-                await fs.unlink(filePath);
-                await removeFromProjectAsync(filePath);
-            }
+            else await fs.unlink(filePath);
         }
     }
 
-    if (!removeContentOnly) {
-        await fs.rmdir(folderPath);
-        await removeFromProjectAsync(folderPath);
-    }
+    if (!removeContentOnly) await fs.rmdir(folderPath);
 }
 
 async function yesNoPickAsync(message: string): Promise<boolean | undefined> {

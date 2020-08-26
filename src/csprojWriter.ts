@@ -26,35 +26,49 @@ export class CsProjWriter {
         return undefined;
     }
 
-    public async add(projPath: string, itemPath: string, itemType: BuildActions) {
-        itemPath = this.fixItemPath(projPath, itemPath);
+    public async add(projPath: string, itemPaths: string[], itemType: BuildActions) {
+        var paths: Array<string> = [];
 
-        let buildAction = await this.get(projPath, itemPath);
-        if (buildAction !== undefined) await this.remove(projPath, itemPath);
+        for (let itemPath of itemPaths) {
+            let path = this.fixItemPath(projPath, itemPath);
+            paths.push(path);
+
+            let buildAction = await this.get(projPath, path);
+            if (buildAction !== undefined) await this.remove(projPath, path);
+
+            
+        }
 
         let parsedXml = await this.parseProjFile(projPath);
         if (parsedXml === undefined) return;
 
-        let obj = {
-            [itemType]: {
-                $: {
-                    'Include': itemPath
+        let items: Array<Object> = Object(parsedXml).Project.ItemGroup;
+
+        const obj = function (includePath: string) {
+            return {
+                [itemType]: {
+                    $: {
+                        'Include': includePath
+                    }
                 }
-            }
+            };
         };
 
-        if (itemType === BuildActions.Compile && itemPath.endsWith('.xaml.cs')) {
-            let pagePath = itemPath.replace('.cs', '');
-            let pageBuildAction = await this.get(projPath, pagePath);
+        for (let includePath of paths) {
+            var item = obj(includePath);
 
-            if (pageBuildAction === BuildActions.Page) Object(obj[itemType]).DependentUpon = path.basename(pagePath);
-        } else if (itemType === BuildActions.Page) {
-            Object(obj[itemType]).SubType = 'Designer';
-            Object(obj[itemType]).Generator = 'MSBuild:Compile';
+            if (itemType === BuildActions.Compile && includePath.endsWith('.xaml.cs')) {
+                let pagePath = includePath.replace('.cs', '');
+                let pageBuildAction = await this.get(projPath, pagePath);
+
+                if (pageBuildAction === BuildActions.Page) Object(item[itemType]).DependentUpon = path.basename(pagePath);
+            } else if (itemType === BuildActions.Page) {
+                Object(item[itemType]).SubType = 'Designer';
+                Object(item[itemType]).Generator = 'MSBuild:Compile';
+            }
+
+            items.push(item);
         }
-
-        let items: Array<Object> = Object(parsedXml).Project.ItemGroup;
-        items.push(obj);
 
         await fs.writeFile(projPath, new xml2js.Builder().buildObject(parsedXml));
     }
@@ -78,6 +92,14 @@ export class CsProjWriter {
     }
 
     public async remove(projPath: string, itemPath: string) {
+
+        let isDir = false;
+        try {
+            let fileStat = await fs.lstat(itemPath);
+            isDir = fileStat.isDirectory();
+        } catch {}
+        
+
         itemPath = this.fixItemPath(projPath, itemPath);
 
         let parsedXml = await this.parseProjFile(projPath);
@@ -88,11 +110,22 @@ export class CsProjWriter {
         for (let item of items) {
             let actions: Array<Object> = Object.keys(item).map(key => Object(item)[key])[0];
             for (let action of actions) {
-                if (Object(action)["$"].Include === itemPath) {
-                    actions.splice(actions.indexOf(action), 1);
-                    if (actions.length == 0) items.splice(items.indexOf(item), 1);
+                let include: string = Object(action)["$"].Include;
+                if (include === itemPath || (isDir && include.startsWith(itemPath))) {
+                    delete actions[actions.indexOf(action)];
                 }
             }
+        }
+
+        // Remove empty ItemGroups
+        for (let item of items) {
+            let actions: Array<Object> = Object.keys(item).map(key => Object(item)[key])[0];
+
+            for (let action of actions) {
+                if (action === undefined) actions.splice(actions.indexOf(action));
+            }
+
+            if (actions.length === 0) items.splice(items.indexOf(item));
         }
 
         await fs.writeFile(projPath, new xml2js.Builder().buildObject(parsedXml));
