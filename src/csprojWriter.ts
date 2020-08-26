@@ -36,7 +36,7 @@ export class CsProjWriter {
             let buildAction = await this.get(projPath, path);
             if (buildAction !== undefined) await this.remove(projPath, path);
 
-            
+
         }
 
         let parsedXml = await this.parseProjFile(projPath);
@@ -97,8 +97,8 @@ export class CsProjWriter {
         try {
             let fileStat = await fs.lstat(itemPath);
             isDir = fileStat.isDirectory();
-        } catch {}
-        
+        } catch { }
+
 
         itemPath = this.fixItemPath(projPath, itemPath);
 
@@ -112,17 +112,8 @@ export class CsProjWriter {
             for (let action of actions) {
                 let include: string = Object(action)["$"].Include;
                 if (include === itemPath || (isDir && include.startsWith(itemPath))) {
-                    delete actions[actions.indexOf(action)];
+                    actions.splice(actions.indexOf(action));
                 }
-            }
-        }
-
-        // Remove empty ItemGroups
-        for (let item of items) {
-            let actions: Array<Object> = Object.keys(item).map(key => Object(item)[key])[0];
-
-            for (let action of actions) {
-                if (action === undefined) actions.splice(actions.indexOf(action));
             }
 
             if (actions.length === 0) items.splice(items.indexOf(item));
