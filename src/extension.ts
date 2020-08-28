@@ -43,11 +43,12 @@ async function createFile(args: any) {
 
     let
         template = await vscode.window.showQuickPick([
+            { label: "Empty File", kind: "EmptyFile" },
             { label: "Class", kind: "Class" },
             { label: "Enum", kind: "Enum" },
             { label: "Interface", kind: "Interface" },
             { label: "Page", kind: "Page" },
-            { label: "UserControl", kind: "UserControl" },
+            { label: "User Control", kind: "UserControl" },
             { label: "Resource file (.resw)", kind: "Resource" }],
             { ignoreFocusOut: true, placeHolder: 'Please select template' }),
         incomingPath: string = args._fsPath || args.fsPath || args.path,
@@ -174,7 +175,7 @@ async function change(args: any) {
     await selectBuildActionAndAdd([incomingPath]);
 }
 
-async function selectBuildActionAndAdd(files: string[]) {
+async function selectBuildAction(files: string[]): Promise<BuildActions | undefined> {
     let items: Array<string> = [];
 
     Object.keys(BuildActions).map(key => {
@@ -185,8 +186,14 @@ async function selectBuildActionAndAdd(files: string[]) {
     let buildAction = await vscode.window.showQuickPick(items, { ignoreFocusOut: true, placeHolder: 'Please select build action for ' + (files.length > 1 ? 'files' : "'" + path.basename(files[0]) + "'") });
     if (buildAction === undefined) return;
 
-    let buildType = BuildActions[buildAction as keyof typeof BuildActions];
-    await addToProjectAsync(files, buildType);
+    return BuildActions[buildAction as keyof typeof BuildActions];
+}
+
+async function selectBuildActionAndAdd(files: string[]) {
+    var buildAction = await selectBuildAction(files);
+    if (buildAction === undefined) return;
+
+    await addToProjectAsync(files, buildAction);
 }
 
 async function promptAndAddAsync(incomingPath: string, templateType: string, fileName: string | undefined = undefined) {
@@ -204,8 +211,8 @@ async function promptAndAddAsync(incomingPath: string, templateType: string, fil
             await addToProjectAsync([folderPath], BuildActions.Folder);
         }
     } else {
-        let extName = "";
-        let buildAction = BuildActions.None;
+        let extName = '';
+        let buildAction: BuildActions | undefined;
         let addCsFile = false;
         let openBeside = false;
 
@@ -226,6 +233,16 @@ async function promptAndAddAsync(incomingPath: string, templateType: string, fil
         if (fileName === undefined) return;
 
         let filePath = correctExtension(incomingPath + path.sep + fileName, extName);
+
+        if (path.extname(filePath) === '') {
+            let removeAction = await yesNoPickAsync("Are you sure you want to create a file without extension?");
+            if (removeAction === undefined || !removeAction) return;
+        }
+
+        if (buildAction === undefined) {
+            buildAction = await selectBuildAction([filePath]);
+            if (buildAction === undefined) buildAction = BuildActions.None;
+        }
 
         try {
             await fs.access(filePath);
