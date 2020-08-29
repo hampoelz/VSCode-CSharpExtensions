@@ -74,9 +74,12 @@ async function addFiles(args: any) {
     let files = await vscode.window.showOpenDialog({ canSelectFiles: true, canSelectFolders: false, canSelectMany: true });
     if (files === undefined) return;
 
-    let isPerFileAction = await yesNoPickAsync('Would you like to select the build action for each file individually?');
-    if (isPerFileAction === undefined) return;
-
+    let isPerFileAction: boolean | undefined = false;
+    if (files.length > 1) {
+        isPerFileAction = await yesNoPickAsync('Would you like to select the build action for each file individually?');
+        if (isPerFileAction === undefined) return;        
+    }
+    
     let filePaths: string[] = [];
     const ncp = require('ncp').ncp;
     for (let fileUri of files) {
