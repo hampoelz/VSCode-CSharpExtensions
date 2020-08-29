@@ -175,7 +175,12 @@ async function change(args: any) {
     await selectBuildActionAndAdd([incomingPath]);
 }
 
-async function selectBuildAction(files: string[]): Promise<BuildActions | undefined> {
+async function selectBuildActionAsync(files: string[]): Promise<BuildActions | undefined> {
+    const csproj = new CsProjWriter();
+    const proj = await csproj.getProjFilePath(files[0]);
+
+    if (proj === undefined) return;
+
     let items: Array<string> = [];
 
     Object.keys(BuildActions).map(key => {
@@ -190,7 +195,7 @@ async function selectBuildAction(files: string[]): Promise<BuildActions | undefi
 }
 
 async function selectBuildActionAndAdd(files: string[]) {
-    var buildAction = await selectBuildAction(files);
+    var buildAction = await selectBuildActionAsync(files);
     if (buildAction === undefined) return;
 
     await addToProjectAsync(files, buildAction);
@@ -239,11 +244,6 @@ async function promptAndAddAsync(incomingPath: string, templateType: string, fil
             if (removeAction === undefined || !removeAction) return;
         }
 
-        if (buildAction === undefined) {
-            buildAction = await selectBuildAction([filePath]);
-            if (buildAction === undefined) buildAction = BuildActions.None;
-        }
-
         try {
             await fs.access(filePath);
             vscode.window.showErrorMessage("File already exists");
@@ -254,6 +254,12 @@ async function promptAndAddAsync(incomingPath: string, templateType: string, fil
                 typename = path.basename(fileName, path.extname(fileName));
 
             await writeFromTemplateAsync(templateType, namespace, typename, filePath, openBeside);
+
+            if (buildAction === undefined) {
+                buildAction = await selectBuildActionAsync([filePath]);
+                if (buildAction === undefined) return;
+            }
+
             await addToProjectAsync([filePath], buildAction);
 
             if (addCsFile) await promptAndAddAsync(incomingPath, templateType + '.cs', fileName);
