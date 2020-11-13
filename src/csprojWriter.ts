@@ -35,8 +35,6 @@ export class CsProjWriter {
 
             let buildAction = await this.get(projPath, path);
             if (buildAction !== undefined) await this.remove(projPath, path);
-
-
         }
 
         let parsedXml = await this.parseProjFile(projPath);
@@ -56,6 +54,7 @@ export class CsProjWriter {
 
         for (let includePath of paths) {
             var item = obj(includePath);
+            var itemGroup = this.getItemGroupByPath(items, includePath);
 
             if (itemType === BuildActions.Compile && includePath.endsWith('.xaml.cs')) {
                 let pagePath = includePath.replace('.cs', '');
@@ -67,7 +66,20 @@ export class CsProjWriter {
                 Object(item[itemType]).Generator = 'MSBuild:Compile';
             }
 
-            items.push(item);
+            if (itemGroup != undefined) {
+                var actions: Array<Object> | undefined = Object(itemGroup)[itemType];
+                if (actions == undefined) {
+                    var array: Array<Object> = [];
+                    array[0] = item[itemType];
+                    Object(itemGroup)[itemType] = array;
+                } else {
+                    actions.push(Object(item[itemType]));
+                }
+            } else {
+                var array: Array<Object> = [];
+                array[0] = item[itemType];
+                items.push({ [itemType]: array });
+            }
         }
 
         await fs.writeFile(projPath, new xml2js.Builder().buildObject(parsedXml));
@@ -92,13 +104,11 @@ export class CsProjWriter {
     }
 
     public async remove(projPath: string, itemPath: string) {
-
         let isDir = false;
         try {
             let fileStat = await fs.lstat(itemPath);
             isDir = fileStat.isDirectory();
         } catch { }
-
 
         itemPath = this.fixItemPath(projPath, itemPath);
 
@@ -108,15 +118,21 @@ export class CsProjWriter {
         let items: Array<Object> = Object(parsedXml).Project.ItemGroup;
 
         for (let item of items) {
-            let actions: Array<Object> = Object.keys(item).map(key => Object(item)[key])[0];
-            for (let action of actions) {
-                let include: string = Object(action)["$"].Include;
-                if (include === itemPath || (isDir && include.startsWith(itemPath))) {
-                    actions.splice(actions.indexOf(action));
+            let actionsArray: Array<Array<Object>> = Object.keys(item).map(key => Object(item)[key]);
+            
+            for (let index = 0; index < actionsArray.length; index++) {
+                let actions = actionsArray[index];
+                for (let action = 0; action < actions.length; action++) {
+                    let include: string = Object(actions[action])["$"].Include;
+                    if (include === itemPath || (isDir && include.startsWith(itemPath))) {
+                        actions.splice(action, 1);
+                    }
                 }
+
+                if (actions.length === 0) actionsArray.splice(actionsArray.indexOf(actions), 1);
             }
 
-            if (actions.length === 0) items.splice(items.indexOf(item));
+            if (actionsArray.length === 0) items.splice(items.indexOf(item), 1);
         }
 
         await fs.writeFile(projPath, new xml2js.Builder().buildObject(parsedXml));
@@ -130,6 +146,24 @@ export class CsProjWriter {
         if (parsedXml === undefined || parsedXml.Project === undefined) return undefined;
 
         return parsedXml;
+    }
+
+    private getItemGroupByPath(itemGroups: Array<Object>, itemPath: string): Object | undefined {
+        for (let item of itemGroups) {
+            let actionsArray: Array<Array<Object>> = Object.keys(item).map(key => Object(item)[key]);
+
+            for (let index = 0; index < actionsArray.length; index++) {
+                let actions = actionsArray[index];
+                for (let action = 0; action < actions.length; action++) {
+                    let include: string = Object(actions[action])["$"].Include;
+                    if (path.dirname(include) === path.dirname(itemPath)) {
+                        return Object(item);
+                    }
+                }
+            }
+        }
+
+        return undefined;
     }
 
     private fixItemPath(projPath: string, itemPath: string): string {
