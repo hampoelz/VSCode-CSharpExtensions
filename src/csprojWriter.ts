@@ -162,10 +162,8 @@ export class CsProjWriter {
                     let include: string = Object(actions[action])["$"].Include;
                     if (include === oldItemPath) {
                         Object(actions[action])["$"].Include = newItemPath;
-                        console.log(Object(actions[action]));
                     } else if (isDir && include.startsWith(oldItemPath)) {
                         Object(actions[action])["$"].Include = include.replace(oldItemPath, newItemPath);
-                        console.log(Object(actions[action]));
                     }
                 }
             }
