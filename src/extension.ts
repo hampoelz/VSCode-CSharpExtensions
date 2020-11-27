@@ -121,13 +121,15 @@ async function rename(args: any) {
     let newName = await vscode.window.showInputBox({ ignoreFocusOut: true, prompt: "Rename '" + path.basename(incomingPath) + "'", value: path.basename(incomingPath) });
     if (newName === undefined) return;
 
-    let newPath = path.join(path.dirname(incomingPath), newName);
     let newFileExt = path.extname(newName);
+    newName = path.basename(newName, newFileExt);
 
     if (oldFileExt !== newFileExt) {
         let removeAction = await yesNoPickAsync("Are you sure you want to change the extension Name from '" + oldFileExt + "' to '" + newFileExt + "'?");
         if (removeAction === undefined || !removeAction) newFileExt = oldFileExt;
     }
+
+    let newPath = path.join(path.dirname(incomingPath), newName + newFileExt);
 
     await renameInProjectAsync(incomingPath, newPath);
     await fs.rename(incomingPath, newPath);
