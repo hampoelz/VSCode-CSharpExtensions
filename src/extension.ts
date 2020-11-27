@@ -307,7 +307,7 @@ async function renameInProjectAsync(oldPath: string, newPath: string) {
     const csproj = new CsProjWriter();
     const proj = await csproj.getProjFilePath(oldPath);
 
-    if (proj !== undefined) await csproj.rename(proj, oldPath, newPath);
+    if (proj !== undefined) csproj.rename(proj, oldPath, newPath);
 }
 
 async function removeFolderAsync(folderPath: string, removeContentOnly?: boolean) {
