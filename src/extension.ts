@@ -11,7 +11,6 @@ export function activate(context: vscode.ExtensionContext) {
         scheme: 'file'
     };
 
-    context.subscriptions.push(vscode.commands.registerCommand('csharpextensions.createFolder', createFolder));
     context.subscriptions.push(vscode.commands.registerCommand('csharpextensions.createFile', createFile));
     context.subscriptions.push(vscode.commands.registerCommand('csharpextensions.addFiles', addFiles));
     context.subscriptions.push(vscode.commands.registerCommand('csharpextensions.remove', remove));
@@ -23,19 +22,6 @@ export function activate(context: vscode.ExtensionContext) {
     let disposable = vscode.languages.registerCodeActionsProvider(documentSelector, codeActionProvider);
 
     context.subscriptions.push(disposable);
-}
-
-async function createFolder(args: any) {
-    if (args == null) args = { _fsPath: vscode.workspace.rootPath };
-
-    let
-        incomingPath: string = args._fsPath || args.fsPath || args.path,
-        fileStat = await fs.lstat(incomingPath),
-        isDir = fileStat.isDirectory();
-
-    if (!isDir) incomingPath = path.dirname(incomingPath);
-
-    await promptAndAddAsync(incomingPath, 'folder');
 }
 
 async function createFile(args: any) {

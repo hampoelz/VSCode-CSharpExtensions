@@ -19,8 +19,6 @@
     "activationEvents": [
         "onLanguage:csharp",
         "onCommand:csharpextensions.changeBuildAction",
-        "onCommand:csharpextensions.createFolder",
-        "onCommand:csharpextensions.addFolder",
         "onCommand:csharpextensions.createFile",
         "onCommand:csharpextensions.addFiles",
         "onCommand:csharpextensions.rename",
@@ -29,10 +27,6 @@
     "main": "./out/src/extension",
     "contributes": {
         "commands": [
-            {
-                "command": "csharpextensions.createFolder",
-                "title": "Add new Folder to project"
-            },
             {
                 "command": "csharpextensions.createFile",
                 "title": "Add new File to project"
@@ -63,10 +57,6 @@
                 {
                     "group": "navigation@-1",
                     "command": "csharpextensions.addFiles"
-                },
-                {
-                    "group": "navigation@-1",
-                    "command": "csharpextensions.createFolder"
                 },
                 {
                     "group": "navigation@-1",
