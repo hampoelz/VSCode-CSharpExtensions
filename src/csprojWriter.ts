@@ -138,6 +138,42 @@ export class CsProjWriter {
         await fs.writeFile(projPath, new xml2js.Builder().buildObject(parsedXml));
     }
 
+    public async rename(projPath: string, oldItemPath: string, newItemPath: string) {
+        let isDir = false;
+        try {
+            let fileStat = await fs.lstat(oldItemPath);
+            isDir = fileStat.isDirectory();
+        } catch { }
+
+        oldItemPath = this.fixItemPath(projPath, oldItemPath);
+        newItemPath = this.fixItemPath(projPath, newItemPath);
+
+        let parsedXml = await this.parseProjFile(projPath);
+        if (parsedXml === undefined) return;
+
+        let items: Array<Object> = Object(parsedXml).Project.ItemGroup;
+
+        for (let item of items) {
+            let actionsArray: Array<Array<Object>> = Object.keys(item).map(key => Object(item)[key]);
+
+            for (let index = 0; index < actionsArray.length; index++) {
+                let actions = actionsArray[index];
+                for (let action = 0; action < actions.length; action++) {
+                    let include: string = Object(actions[action])["$"].Include;
+                    if (include === oldItemPath) {
+                        Object(actions[action])["$"].Include = newItemPath;
+                        console.log(Object(actions[action]));
+                    } else if (isDir && include.startsWith(oldItemPath)) {
+                        Object(actions[action])["$"].Include = include.replace(oldItemPath, newItemPath);
+                        console.log(Object(actions[action]));
+                    }
+                }
+            }
+        }
+
+        await fs.writeFile(projPath, new xml2js.Builder().buildObject(parsedXml));
+    }
+
     private async parseProjFile(projPath: string): Promise<Object | undefined> {
         const xml = await fs.readFile(projPath, 'utf8');
         const xmlParser = util.promisify(new xml2js.Parser().parseString);

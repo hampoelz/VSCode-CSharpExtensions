@@ -106,7 +106,7 @@ async function rename(args: any) {
     if (args == null) args = { _fsPath: vscode.workspace.rootPath };
 
     let incomingPath: string = args._fsPath || args.fsPath || args.path;
-    let fileExt = path.extname(incomingPath);
+    let oldFileExt = path.extname(incomingPath);
 
     if (incomingPath.endsWith('.sln') ||
         incomingPath.endsWith('.shproj') ||
@@ -121,21 +121,16 @@ async function rename(args: any) {
     let newName = await vscode.window.showInputBox({ ignoreFocusOut: true, prompt: "Rename '" + path.basename(incomingPath) + "'", value: path.basename(incomingPath) });
     if (newName === undefined) return;
 
-    let newFileExt = path.extname(newName);
     let newPath = path.join(path.dirname(incomingPath), newName);
+    let newFileExt = path.extname(newName);
 
-    if (fileExt !== newFileExt) {
-        let removeAction = await yesNoPickAsync("Are you sure you want to change the extension Name from '" + fileExt + "' to '" + newFileExt + "'?");
-        if (removeAction === undefined || !removeAction) newFileExt = fileExt;
+    if (oldFileExt !== newFileExt) {
+        let removeAction = await yesNoPickAsync("Are you sure you want to change the extension Name from '" + oldFileExt + "' to '" + newFileExt + "'?");
+        if (removeAction === undefined || !removeAction) newFileExt = oldFileExt;
     }
 
+    await renameInProjectAsync(incomingPath, newPath);
     await fs.rename(incomingPath, newPath);
-
-    let buildAction = await getBuildActionAsync(incomingPath);
-    if (buildAction !== undefined) {
-        await removeFromProjectAsync(incomingPath);
-        await addToProjectAsync([newPath], buildAction);
-    }
 }
 
 async function change(args: any) {
@@ -306,6 +301,13 @@ async function removeFromProjectAsync(path: string) {
     const proj = await csproj.getProjFilePath(path);
 
     if (proj !== undefined) csproj.remove(proj, path);
+}
+
+async function renameInProjectAsync(oldPath: string, newPath: string) {
+    const csproj = new CsProjWriter();
+    const proj = await csproj.getProjFilePath(oldPath);
+
+    if (proj !== undefined) await csproj.rename(proj, oldPath, newPath);
 }
 
 async function removeFolderAsync(folderPath: string, removeContentOnly?: boolean) {
