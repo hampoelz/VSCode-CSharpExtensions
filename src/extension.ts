@@ -109,7 +109,6 @@ async function createFile(args: any) {
 
     let
         template = await vscode.window.showQuickPick([
-            { label: "Empty File", kind: "EmptyFile" },
             { label: "Class", kind: "Class" },
             { label: "Enum", kind: "Enum" },
             { label: "Interface", kind: "Interface" },
