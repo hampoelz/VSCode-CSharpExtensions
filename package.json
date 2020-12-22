@@ -19,29 +19,14 @@
     "activationEvents": [
         "onLanguage:csharp",
         "onCommand:csharpextensions.changeBuildAction",
-        "onCommand:csharpextensions.createFile",
-        "onCommand:csharpextensions.addFiles",
-        "onCommand:csharpextensions.rename",
-        "onCommand:csharpextensions.remove"
+        "onCommand:csharpextensions.createFile"
     ],
     "main": "./out/src/extension",
     "contributes": {
         "commands": [
             {
                 "command": "csharpextensions.createFile",
-                "title": "Add new File to project"
-            },
-            {
-                "command": "csharpextensions.addFiles",
-                "title": "Add existing Files to project"
-            },
-            {
-                "command": "csharpextensions.rename",
-                "title": "Rename project item"
-            },
-            {
-                "command": "csharpextensions.remove",
-                "title": "Remove from project"
+                "title": "Create new file from template"
             },
             {
                 "command": "csharpextensions.changeBuildAction",
@@ -51,24 +36,12 @@
         "menus": {
             "explorer/context": [
                 {
-                    "group": "navigation@-1",
-                    "command": "csharpextensions.createFile"
+                    "command": "csharpextensions.createFile",
+                    "group": "navigation@-1"
                 },
                 {
-                    "group": "navigation@-1",
-                    "command": "csharpextensions.addFiles"
-                },
-                {
-                    "group": "navigation@-1",
-                    "command": "csharpextensions.rename"
-                },
-                {
-                    "group": "navigation@-1",
-                    "command": "csharpextensions.remove"
-                },
-                {
-                    "group": "navigation@-1",
-                    "command": "csharpextensions.changeBuildAction"
+                    "command": "csharpextensions.changeBuildAction",
+                    "group": "navigation@-1"
                 }
             ]
         },

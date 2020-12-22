@@ -6,26 +6,106 @@ import CodeActionProvider from './codeActionProvider';
 import NamespaceDetector from './namespaceDetector';
 
 export function activate(context: vscode.ExtensionContext) {
+    const codeActionProvider = new CodeActionProvider();
     const documentSelector: vscode.DocumentSelector = {
         language: 'csharp',
         scheme: 'file'
     };
 
-    context.subscriptions.push(vscode.commands.registerCommand('csharpextensions.createFile', createFile));
-    context.subscriptions.push(vscode.commands.registerCommand('csharpextensions.addFiles', addFiles));
-    context.subscriptions.push(vscode.commands.registerCommand('csharpextensions.remove', remove));
-    context.subscriptions.push(vscode.commands.registerCommand('csharpextensions.rename', rename));
-    context.subscriptions.push(vscode.commands.registerCommand('csharpextensions.changeBuildAction', change));
-
-    const codeActionProvider = new CodeActionProvider();
-
     let disposable = vscode.languages.registerCodeActionsProvider(documentSelector, codeActionProvider);
 
+    context.subscriptions.push(vscode.commands.registerCommand('csharpextensions.createFile', createFile));
+    context.subscriptions.push(vscode.commands.registerCommand('csharpextensions.changeBuildAction', change));
     context.subscriptions.push(disposable);
+
+    var stackedFiles: vscode.Uri[] = [];
+    var timeLeft: number;
+    var timer: NodeJS.Timeout;
+
+    function fileStack(file: vscode.Uri) {
+        stackedFiles.push(file);
+        timeLeft = 100;
+        clearInterval(timer);
+        timer = setInterval(async () => {
+            if (timeLeft <= 0) {
+                clearInterval(timer);
+                await onCreateFiles({ files: stackedFiles });
+                stackedFiles = [];
+            }
+            timeLeft -= 1;
+        }, 10);
+    }
+
+    var watcher = vscode.workspace.createFileSystemWatcher("**");
+    watcher.onDidCreate(event => {
+        fileStack(event);
+    });
+    //vscode.workspace.onDidCreateFiles(onCreateFiles);
+    vscode.workspace.onDidDeleteFiles(onDeleteFiles);
+    vscode.workspace.onDidRenameFiles(onRenameFiles);
+}
+
+async function onCreateFiles(event: vscode.FileCreateEvent) {
+    const csproj = new CsProjWriter();
+    let files: string[] = [];
+    let projs: string[] = [];
+
+    for (var i = 0; i < event.files.length; i++) {
+        const file = event.files[i];
+        const proj = await csproj.getProjFilePath(file.fsPath);
+        let fileStat = await fs.lstat(file.fsPath)
+
+        if (proj !== undefined && !fileStat.isDirectory()) {
+            let alreadyInProj = await csproj.get(proj, file.fsPath) != undefined;
+            if (!alreadyInProj) {
+                files.push(file.fsPath);
+                projs.push(proj);
+            }
+        }
+    }
+
+    if (files.length < 1) return;
+    var message = files.length > 1 ?
+        "You can choose build actions on the newly added files" :
+        "You can choose a build action on the newly added file";
+    var button = files.length > 1 ?
+        "Choose build actions" :
+        "Choose a build action";
+    await vscode.window.showInformationMessage(message, button).then(async event => {
+        if (event == undefined) return;
+        let isPerFileAction: boolean | undefined = false;
+        if (files.length > 1) {
+            isPerFileAction = await yesNoPickAsync('Would you like to select the build action for each file individually?');
+            if (isPerFileAction === undefined) return;
+        }
+
+        if (isPerFileAction) {
+            for (var i = 0; i < files.length; i++) {
+                const file = files[i];
+                const proj = projs[i];
+
+                var buildAction = await selectBuildActionAsync(proj, false, path.basename(file));
+                if (buildAction != undefined) await csproj.add(proj, [file], buildAction);
+            }
+        } else {
+            let uniqueProjs = projs.filter((item, pos, self) => self.indexOf(item) == pos);
+
+            for (var i = 0; i < uniqueProjs.length; i++) {
+                const proj = uniqueProjs[i];
+
+                var buildAction = await selectBuildActionAsync(proj, true, '');
+                if (buildAction != undefined) await csproj.add(proj, files, buildAction);
+            }
+        }
+    });
 }
 
 async function createFile(args: any) {
-    if (args == null) args = { _fsPath: vscode.workspace.rootPath };
+    // 'rootPath' is deprecated
+    //if (args == null) args = { _fsPath: vscode.workspace.rootPath };
+    var workspaceFolders = vscode.workspace.workspaceFolders;
+    if (workspaceFolders == undefined) return;
+    if (args == null) args = { _fsPath: workspaceFolders[0] };
 
     let
         template = await vscode.window.showQuickPick([
@@ -38,108 +118,44 @@ async function createFile(args: any) {
             { label: "Resource file (.resw)", kind: "Resource" }],
             { ignoreFocusOut: true, placeHolder: 'Please select template' }),
         incomingPath: string = args._fsPath || args.fsPath || args.path,
-        fileStat = await fs.lstat(incomingPath),
-        isDir = fileStat.isDirectory();
+        fileStat = await fs.lstat(incomingPath);
 
-    if (!isDir) incomingPath = path.dirname(incomingPath);
+    if (!fileStat.isDirectory()) incomingPath = path.dirname(incomingPath);
     if (template === undefined) return;
 
     await promptAndAddAsync(incomingPath, template.kind);
 }
 
-async function addFiles(args: any) {
-    if (args == null) args = { _fsPath: vscode.workspace.rootPath };
+async function onDeleteFiles(event: vscode.FileDeleteEvent) {
+    const csproj = new CsProjWriter();
+    let files = event.files;
 
-    let
-        incomingPath: string = args._fsPath || args.fsPath || args.path,
-        fileStat = await fs.lstat(incomingPath),
-        isDir = fileStat.isDirectory();
+    for (var i = 0; i < files.length; i++) {
+        const file = files[i];
 
-    if (!isDir) incomingPath = path.dirname(incomingPath);
-
-    let files = await vscode.window.showOpenDialog({ canSelectFiles: true, canSelectFolders: false, canSelectMany: true });
-    if (files === undefined) return;
-
-    let isPerFileAction: boolean | undefined = false;
-    if (files.length > 1) {
-        isPerFileAction = await yesNoPickAsync('Would you like to select the build action for each file individually?');
-        if (isPerFileAction === undefined) return;        
+        const proj = await csproj.getProjFilePath(file.fsPath);
+        if (proj !== undefined) await csproj.remove(proj, file.fsPath);
     }
-    
-    let filePaths: string[] = [];
-    const ncp = require('ncp').ncp;
-    for (let fileUri of files) {
-        let sourcePath = fileUri.fsPath || fileUri.path;
-        let destinationPath = path.join(incomingPath, path.basename(sourcePath));
-
-        filePaths.push(destinationPath);
-
-        ncp.limit = 16;
-        ncp(sourcePath, destinationPath);
-
-        if (isPerFileAction) await selectBuildActionAndAdd([destinationPath]);
-    }
-
-    if (!isPerFileAction) await selectBuildActionAndAdd(filePaths);
 }
 
-async function remove(args: any) {
-    if (args == null) args = { _fsPath: vscode.workspace.rootPath };
+async function onRenameFiles(event: vscode.FileRenameEvent) {
+    const csproj = new CsProjWriter();
+    let files = event.files;
 
-    let
-        incomingPath: string = args._fsPath || args.fsPath || args.path,
-        fileStat = await fs.lstat(incomingPath),
-        isDir = fileStat.isDirectory();
+    for (var i = 0; i < files.length; i++) {
+        const file = files[i];
 
-    //TODO: Add support to delete multiple files --> https://github.com/microsoft/vscode/issues/3553 
-
-    let removeAction = await yesNoPickAsync("Are you sure you want to remove '" + path.basename(incomingPath) + "'?");
-    if (removeAction === undefined || !removeAction) return;
-
-    await removeFromProjectAsync(incomingPath);
-
-    if (isDir) await removeFolderAsync(incomingPath); 
-    else await fs.unlink(incomingPath);
-}
-
-async function rename(args: any) {
-    if (args == null) args = { _fsPath: vscode.workspace.rootPath };
-
-    let incomingPath: string = args._fsPath || args.fsPath || args.path;
-    let oldFileExt = path.extname(incomingPath);
-
-    if (incomingPath.endsWith('.sln') ||
-        incomingPath.endsWith('.shproj') ||
-        incomingPath.endsWith('.projitems') ||
-        incomingPath.endsWith('.csproj') ||
-        incomingPath.endsWith('.user') ||
-        incomingPath.endsWith('project.json')) {
-        vscode.window.showErrorMessage("The name of this file cannot be changed");
-        return;
+        const proj = await csproj.getProjFilePath(file.oldUri.fsPath);
+        if (proj !== undefined) await csproj.rename(proj, file.oldUri.fsPath, file.newUri.fsPath);
     }
-
-    let newName = await vscode.window.showInputBox({ ignoreFocusOut: true, prompt: "Rename '" + path.basename(incomingPath) + "'", value: path.basename(incomingPath) });
-    if (newName === undefined) return;
-
-    let newFileExt = path.extname(newName);
-    newName = path.basename(newName, newFileExt);
-
-    if (oldFileExt !== newFileExt) {
-        let removeAction = await yesNoPickAsync("Are you sure you want to change the extension Name from '" + oldFileExt + "' to '" + newFileExt + "'?");
-        if (removeAction === undefined || !removeAction) newFileExt = oldFileExt;
-    }
-
-    let newPath = path.join(path.dirname(incomingPath), newName + newFileExt);
-
-    await renameInProjectAsync(incomingPath, newPath);
-    await fs.rename(incomingPath, newPath);
 }
 
 async function change(args: any) {
-    if (args == null) args = { _fsPath: vscode.workspace.rootPath };
+    if (args == null) return;
+    const csproj = new CsProjWriter();
 
     let
-        incomingPath: string = args._fsPath || args.fsPath || args.path,
+        incomingPath: string = args.fsPath || args.path,
         fileStat = await fs.lstat(incomingPath),
         isDir = fileStat.isDirectory();
 
@@ -158,13 +174,14 @@ async function change(args: any) {
         return;
     }
 
-    await selectBuildActionAndAdd([incomingPath]);
+    const proj = await csproj.getProjFilePath(incomingPath);
+    if (proj != undefined) {
+        var buildAction = await selectBuildActionAsync(proj, false, path.basename(incomingPath));
+        if (buildAction != undefined) await csproj.add(proj, [incomingPath], buildAction);
+    }
 }
 
-async function selectBuildActionAsync(files: string[]): Promise<BuildActions | undefined> {
-    const csproj = new CsProjWriter();
-    const proj = await csproj.getProjFilePath(files[0]);
-
+async function selectBuildActionAsync(proj: string, multiple: boolean, name: string): Promise<BuildActions | undefined> {
     if (proj === undefined) return;
 
     let items: Array<string> = [];
@@ -174,20 +191,16 @@ async function selectBuildActionAsync(files: string[]): Promise<BuildActions | u
         items.push(key);
     });
 
-    let buildAction = await vscode.window.showQuickPick(items, { ignoreFocusOut: true, placeHolder: 'Please select build action for ' + (files.length > 1 ? 'files' : "'" + path.basename(files[0]) + "'") });
+    let buildAction = await vscode.window.showQuickPick(items, { ignoreFocusOut: true, placeHolder: 'Please select build action for ' + (multiple ? 'files' : "'" + name + "'") });
     if (buildAction === undefined) return;
 
     return BuildActions[buildAction as keyof typeof BuildActions];
 }
 
-async function selectBuildActionAndAdd(files: string[]) {
-    var buildAction = await selectBuildActionAsync(files);
-    if (buildAction === undefined) return;
-
-    await addToProjectAsync(files, buildAction);
-}
-
 async function promptAndAddAsync(incomingPath: string, templateType: string, fileName: string | undefined = undefined) {
+    const csproj = new CsProjWriter();
+    const proj = await csproj.getProjFilePath(incomingPath);
+
     if (templateType === 'folder') {
         let folderName = await vscode.window.showInputBox({ ignoreFocusOut: true, prompt: 'Please enter foldername', value: 'new' + templateType });
         if (folderName === undefined) return;
@@ -199,7 +212,7 @@ async function promptAndAddAsync(incomingPath: string, templateType: string, fil
             vscode.window.showErrorMessage("Folder already exists");
         } catch {
             await fs.mkdir(folderPath);
-            await addToProjectAsync([folderPath], BuildActions.Folder);
+            if (proj !== undefined) await csproj.add(proj, [folderPath], BuildActions.Folder);
         }
     } else {
         let extName = '';
@@ -241,12 +254,14 @@ async function promptAndAddAsync(incomingPath: string, templateType: string, fil
 
             await writeFromTemplateAsync(templateType, namespace, typename, filePath, openBeside);
 
-            if (buildAction === undefined) {
-                buildAction = await selectBuildActionAsync([filePath]);
-                if (buildAction === undefined) return;
-            }
+            if (proj !== undefined) {
+                if (buildAction === undefined) {
+                    buildAction = await selectBuildActionAsync(proj, false, path.basename(filePath));
+                    if (buildAction === undefined) return;
+                }
 
-            await addToProjectAsync([filePath], buildAction);
+                await csproj.add(proj, [filePath], buildAction);
+            }
 
             if (addCsFile) await promptAndAddAsync(incomingPath, templateType + '.cs', fileName);
         }
@@ -280,60 +295,6 @@ async function writeFromTemplateAsync(type: string, namespace: string, filename:
     } : {});
 
     if (cursorPosition != null) editor.selection = new vscode.Selection(cursorPosition, cursorPosition);
-}
-
-async function getBuildActionAsync(path: string): Promise<BuildActions | undefined> {
-    const csproj = new CsProjWriter();
-    const proj = await csproj.getProjFilePath(path);
-
-    if (proj !== undefined) return csproj.get(proj, path);
-
-    return undefined;
-}
-
-async function addToProjectAsync(path: string[], type: BuildActions) {
-    const csproj = new CsProjWriter();
-    const proj = await csproj.getProjFilePath(path[0]);
-
-    if (proj !== undefined) csproj.add(proj, path, type);
-}
-
-async function removeFromProjectAsync(path: string) {
-    const csproj = new CsProjWriter();
-    const proj = await csproj.getProjFilePath(path);
-
-    if (proj !== undefined) csproj.remove(proj, path);
-}
-
-async function renameInProjectAsync(oldPath: string, newPath: string) {
-    const csproj = new CsProjWriter();
-    const proj = await csproj.getProjFilePath(oldPath);
-
-    if (proj !== undefined) csproj.rename(proj, oldPath, newPath);
-}
-
-async function removeFolderAsync(folderPath: string, removeContentOnly?: boolean) {
-    let files;
-
-    try {
-        files = await fs.readdir(folderPath);
-    } catch (error) {
-        throw new Error(error);
-    }
-
-    if (files.length) {
-        for (let fileName of files) {
-            let
-                filePath = path.join(folderPath, fileName),
-                fileStat = await fs.lstat(filePath),
-                isDir = fileStat.isDirectory();
-
-            if (isDir) await removeFolderAsync(filePath);
-            else await fs.unlink(filePath);
-        }
-    }
-
-    if (!removeContentOnly) await fs.rmdir(folderPath);
 }
 
 async function yesNoPickAsync(message: string): Promise<boolean | undefined> {
