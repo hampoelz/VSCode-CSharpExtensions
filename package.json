@@ -37,11 +37,13 @@
             "explorer/context": [
                 {
                     "command": "csharpextensions.createFile",
-                    "group": "navigation@-1"
+                    "group": "navigation@-1",
+                    "when": "explorerResourceIsFolder"
                 },
                 {
                     "command": "csharpextensions.changeBuildAction",
-                    "group": "navigation@-1"
+                    "group": "navigation@-1",
+                    "when": "!explorerResourceIsFolder && resourceScheme == file && resourceExtname != .sln && resourceExtname != .shproj && resourceExtname != .projitems && resourceExtname != .csproj"
                 }
             ]
         },
